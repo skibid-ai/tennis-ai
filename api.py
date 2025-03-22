@@ -578,6 +578,139 @@ async def get_tournament_match_pairs(
         print(f"Error retrieving tournament matches: {e}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to retrieve tournament matches: {str(e)}")
+    
+    
+@app.get("/tournaments/daily", tags=["Tournaments"])
+async def get_daily_tournament_matches(
+    date: Optional[str] = Query(None, description="Date in YYYYMMDD format. If not provided, today's date will be used."),
+    predict: bool = Query(True, description="Whether to include match predictions"),
+    model_data: Dict = Depends(get_model)
+):
+    """
+    Get all matches from all tournaments for a specific day (defaults to today).
+    
+    This endpoint:
+    1. Retrieves all current tournaments
+    2. For each tournament, fetches all matches
+    3. Optionally predicts winners for each match
+    
+    Args:
+        date: Optional date in YYYYMMDD format (defaults to today)
+        predict: Whether to include predictions for each match
+        
+    Returns:
+        Dictionary with information about all tournaments and their matches for the specified day
+    """
+    try:
+        # Use today's date if not provided
+        if not date:
+            date = datetime.now().strftime("%Y%m%d")
+        
+        # First, get all current tournaments
+        tournaments_data = get_current_tournaments()
+        
+        if "error" in tournaments_data:
+            raise HTTPException(status_code=500, detail=f"Failed to retrieve tournaments: {tournaments_data['error']}")
+        
+        # Prepare the result container
+        result = {
+            "date": f"{date[:4]}-{date[4:6]}-{date[6:8]}",
+            "tournaments": {}
+        }
+        
+        # For each tournament, get the matches
+        for tournament_key, tournament in tournaments_data.get("tournaments", {}).items():
+            tournament_id = tournament.get("tournament_id")
+            
+            # Skip tournaments without an ID
+            if not tournament_id:
+                continue
+            
+            # Construct URL for this tournament with the specified date
+            url = f"https://www.espn.com/tennis/scoreboard/tournament/_/eventId/{tournament_id}/competitionType/1/date/{date}"
+            
+            # Get matches for this tournament
+            matches = get_tournament_matches(url)
+            
+            # Skip if error or no matches found
+            if "error" in matches or len(matches) <= 2:  # Just Tournament Name and Tournament Day
+                continue
+            
+            # Prepare tournament container
+            tournament_result = {
+                "name": matches.get("Tournament Name", tournament.get("name", "Unknown Tournament")),
+                "matches": {}
+            }
+            
+            # Process each match
+            for key, value in matches.items():
+                if key not in ["Tournament Name", "Tournament Day", "error"]:
+                    match_data = {
+                        "player1": value["player1"],
+                        "player2": value["player2"]
+                    }
+                    
+                    # Add prediction if requested and both players are valid
+                    if predict and model_ready and value["player2"] != "N/A":
+                        try:
+                            # Extract last names for prediction
+                            player1_last = value["player1"].split()[-1]
+                            player2_last = value["player2"].split()[-1]
+                            
+                            # Default to Hard court if we don't know
+                            surface = "Hard"
+                            
+                            # Make prediction
+                            prediction_result = predict_winner(
+                                player1_last,
+                                player2_last,
+                                surface,
+                                model_data["player_stats"],
+                                model_data["model"],
+                                model_data["surface_encoder"]
+                            )
+                            
+                            # Add prediction to match data
+                            if prediction_result:
+                                match_data["prediction"] = {
+                                    "winner": prediction_result["prediction"]["winner"],
+                                    "confidence": prediction_result["prediction"]["confidence"]
+                                }
+                            else:
+                                match_data["prediction"] = {
+                                    "error": "No prediction available"
+                                }
+                        except Exception as e:
+                            # Don't fail the whole request if one prediction fails
+                            print(f"Error predicting match {key}: {e}")
+                            match_data["prediction"] = {
+                                "error": f"Prediction failed: {str(e)}"
+                            }
+                    
+                    tournament_result["matches"][key] = match_data
+            
+            # Only add tournaments that have matches
+            if tournament_result["matches"]:
+                result["tournaments"][tournament_key] = tournament_result
+        
+        # Add summary count
+        tournament_count = len(result["tournaments"])
+        match_count = sum(len(t["matches"]) for t in result["tournaments"].values())
+        
+        result["summary"] = {
+            "tournament_count": tournament_count,
+            "match_count": match_count
+        }
+        
+        return result
+    except HTTPException:
+        # Re-raise HTTPExceptions as-is
+        raise
+    except Exception as e:
+        print(f"Error retrieving daily tournament matches: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve daily tournament matches: {str(e)}")
+
 
 if __name__ == '__main__':
     # Get port from environment or use default
