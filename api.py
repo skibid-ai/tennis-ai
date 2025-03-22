@@ -16,6 +16,7 @@ import json
 import re
 from datetime import datetime
 from typing import List, Dict, Optional, Any
+from fastapi.middleware.cors import CORSMiddleware
 
 # Import functions from main.py
 from main import load_data, extract_features, train_model, predict_winner
@@ -62,6 +63,16 @@ app = FastAPI(
     description="API to predict tennis match outcomes based on historical data",
     version="1.0.0",
     lifespan=lifespan
+)
+
+origins = ["*"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Define request and response models
