@@ -180,7 +180,7 @@ async def get_surfaces(model_data: Dict = Depends(get_model)):
 
 if __name__ == '__main__':
     # Get port from environment or use default
-    port = int(os.environ.get('PORT', 8004))
+    port = int(os.environ.get('PORT', 8000))
     
     # Run the app with uvicorn
     uvicorn.run("api:app", host="0.0.0.0", port=port, reload=False) 
