@@ -9,9 +9,3 @@ services:
     volumes:
       - ./atp_tennis.csv:/app/atp_tennis.csv
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
