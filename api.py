@@ -32,7 +32,7 @@ MODEL_RELOAD_INTERVAL = 3600  # Reload model every hour
 class MatchPredictionRequest(BaseModel):
     playerOne: str = Field(..., description="Last name of the first player")
     playerTwo: str = Field(..., description="Last name of the second player")
-    surface: str = Field("Hard", description="Court surface (e.g., 'Hard', 'Clay', 'Grass')")
+    surface: Optional[str] = Field(None, description="Court surface (e.g., 'Hard', 'Clay', 'Grass'). If null, defaults to 'Hard'")
 
 class PlayerStats(BaseModel):
     win_rate: float
@@ -106,11 +106,14 @@ async def health_check():
 async def predict(data: MatchPredictionRequest, model_data: Dict = Depends(get_model)):
     """Predict the winner of a tennis match."""
     try:
+        # Set default surface to 'Hard' if null
+        surface = data.surface or "Hard"
+        
         # Make prediction
         result = predict_winner(
             data.playerOne,
             data.playerTwo,
-            data.surface,
+            surface,
             model_data["player_stats"],
             model_data["model"],
             model_data["surface_encoder"]

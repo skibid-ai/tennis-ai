@@ -109,6 +109,17 @@ FastAPI automatically generates interactive documentation for the API:
    }
    ```
 
+   The `surface` field is optional and can be null. If not provided or null, "Hard" surface will be used as default.
+   
+   Example with null surface (will use "Hard" as default):
+   ```json
+   {
+     "playerOne": "Federer",
+     "playerTwo": "Nadal",
+     "surface": null
+   }
+   ```
+
    Response:
    ```json
    {
